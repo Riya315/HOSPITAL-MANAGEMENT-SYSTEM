@@ -1,66 +1,77 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+import { useState, useEffect } from 'react';
+import styles from './page.module.css';
 
-export default function Home() {
+export default function Dashboard() {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/dashboard')
+      .then(res => res.json())
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) return <div className="loader"></div>;
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.js file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className={styles.dashboard}>
+      <header className={styles.header}>
+        <div>
+          <h1 className={styles.title}>Welcome back, Admin</h1>
+          <p className={styles.subtitle}>Here is what's happening at the hospital today.</p>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </header>
+
+      <div className={styles.statsGrid}>
+        <div className={`glass-card ${styles.statCard}`}>
+          <div className={styles.statIcon} style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>👥</div>
+          <div className={styles.statInfo}>
+            <h3>Total Patients</h3>
+            <p className={styles.statValue}>{stats?.totalPatients || 0}</p>
+          </div>
         </div>
-      </main>
+        
+        <div className={`glass-card ${styles.statCard}`}>
+          <div className={styles.statIcon} style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>🩺</div>
+          <div className={styles.statInfo}>
+            <h3>Available Doctors</h3>
+            <p className={styles.statValue}>{stats?.totalDoctors || 0}</p>
+          </div>
+        </div>
+
+        <div className={`glass-card ${styles.statCard}`}>
+          <div className={styles.statIcon} style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>📅</div>
+          <div className={styles.statInfo}>
+            <h3>Completed Appointments</h3>
+            <p className={styles.statValue}>{stats?.completedAppointments || 0}</p>
+          </div>
+        </div>
+
+        <div className={`glass-card ${styles.statCard}`}>
+          <div className={styles.statIcon} style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>💵</div>
+          <div className={styles.statInfo}>
+            <h3>Total Revenue</h3>
+            <p className={styles.statValue}>₹{stats?.totalRevenue || 0}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.dashboardContent}>
+        <div className={`glass-card ${styles.activityFeed}`}>
+          <h2 className={styles.sectionTitle}>Recent Activity</h2>
+          <div className={styles.emptyState}>
+            <p>Connect to the database to see live updates.</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
