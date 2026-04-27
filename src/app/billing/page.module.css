@@ -1,30 +1,31 @@
 .pageContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
+  padding: 30px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 30px;
 }
 
 .title {
   font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
   margin-bottom: 8px;
-  background: linear-gradient(90deg, #fff, #94a3b8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-family: var(--font-outfit);
 }
 
 .subtitle {
   color: var(--text-secondary);
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .primaryButton {
-  background: var(--accent-primary);
+  background: linear-gradient(135deg, var(--accent-primary), #8b5cf6);
   color: white;
   border: none;
   padding: 12px 24px;
@@ -32,12 +33,12 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
 }
 
 .primaryButton:hover {
-  background: var(--accent-hover);
   transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
 }
 
 .tableCard {
@@ -46,33 +47,121 @@
 }
 
 .strongText {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.amount {
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .actionBtn {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: var(--text-primary);
-  padding: 6px 16px;
+  background: transparent;
+  color: var(--accent-primary);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 6px 12px;
   border-radius: 6px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 0.85rem;
 }
 
 .actionBtn:hover {
-  background: rgba(255,255,255,0.1);
-  border-color: rgba(255,255,255,0.2);
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--accent-primary);
 }
 
 .emptyState {
   text-align: center;
   padding: 40px !important;
   color: var(--text-muted) !important;
+}
+
+.receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.receiptHeader {
+  text-align: center;
+  padding-bottom: 20px;
+  border-bottom: 2px dashed rgba(255,255,255,0.1);
+}
+
+.receiptHeader h2 {
+  font-size: 1.8rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.accent {
+  color: var(--accent-primary);
+}
+
+.receiptHeader p {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.85rem;
+}
+
+.receiptDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255,255,255,0.02);
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.row strong {
+  color: var(--text-primary);
+}
+
+.receiptTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.receiptTotal span {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.totalValue {
+  font-size: 1.5rem !important;
+  color: #60a5fa !important;
+}
+
+.receiptFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.printBtn {
+  background: transparent;
+  border: 1px solid var(--text-secondary);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.printBtn:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: var(--text-primary);
 }

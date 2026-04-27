@@ -1,23 +1,103 @@
 'use client';
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
+import Modal from '@/components/Modal';
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  
+  // View Profile Tabs: history, prescriptions, labtests, surgeries, allocations
+  const [activeProfileTab, setActiveProfileTab] = useState('history');
+  
+  // Data States
+  const [patientRecords, setPatientRecords] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [labResults, setLabResults] = useState([]);
+  const [admissions, setAdmissions] = useState([]);
 
-  useEffect(() => {
-    fetch('/api/patients')
-      .then(res => res.json())
-      .then(data => {
-        setPatients(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
+  // Add Data Modals & Forms
+  const [isDiagnosisModalOpen, setIsDiagnosisModalOpen] = useState(false);
+  const [diagnosisData, setDiagnosisData] = useState({ doctor_id: '', disease: '', description: '' });
+  const [isLoggingDiag, setIsLoggingDiag] = useState(false);
+
+  const [isAddDetailOpen, setIsAddDetailOpen] = useState(false);
+  const [detailFormType, setDetailFormType] = useState(''); // prescription, labtest, surgery, allocation
+  const [detailFormData, setDetailFormData] = useState({});
+
+  const [formData, setFormData] = useState({
+    name: '', dob: '', gender: 'Male', phone_no: '', address: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchPatients = () => {
+    fetch('/api/patients').then(res => res.json()).then(data => { setPatients(data); setLoading(false); });
+  };
+
+  useEffect(() => { fetchPatients(); }, []);
+
+  const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/patients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       });
-  }, []);
+      if (res.ok) {
+        setIsModalOpen(false);
+        setFormData({ name: '', dob: '', gender: 'Male', phone_no: '', address: '' });
+        fetchPatients();
+      } else alert('Error: ' + (await res.json()).error);
+    } catch (error) { alert('Failed to add patient.'); } 
+    finally { setIsSubmitting(false); }
+  };
+
+  const loadPatientDetails = (patientId, tab) => {
+    if (tab === 'history') {
+      fetch(`/api/records?patient_id=${patientId}`)
+        .then(r => r.json())
+        .then(d => setPatientRecords(Array.isArray(d) ? d : []));
+    } else {
+      fetch(`/api/patient-details?patient_id=${patientId}&type=${tab}`)
+        .then(r => r.json())
+        .then(d => {
+          const safe = Array.isArray(d) ? d : [];
+          if (tab === 'prescription') setPrescriptions(safe);
+          if (tab === 'labtest') setLabResults(safe);
+          if (tab === 'admission') setAdmissions(safe);
+        });
+    }
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveProfileTab(tab);
+    if (selectedPatient) loadPatientDetails(selectedPatient.patient_id, tab);
+  };
+
+  const handleAddDetail = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/patient-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: detailFormType, patient_id: selectedPatient.patient_id, ...detailFormData })
+      });
+      if (res.ok) {
+        setIsAddDetailOpen(false);
+        setDetailFormData({});
+        loadPatientDetails(selectedPatient.patient_id, detailFormType);
+      } else alert('Error: ' + (await res.json()).error);
+    } catch (err) { alert('Failed to save record.'); }
+    finally { setIsSubmitting(false); }
+  };
 
   return (
     <div className={styles.pageContainer}>
@@ -26,53 +106,195 @@ export default function PatientsPage() {
           <h1 className={styles.title}>Patients</h1>
           <p className={styles.subtitle}>Manage hospital patients and records.</p>
         </div>
-        <button className={styles.primaryButton}>+ Add Patient</button>
+        <button className={styles.primaryButton} onClick={() => setIsModalOpen(true)}>+ Add Patient</button>
       </header>
 
       <div className={`glass-card ${styles.tableCard}`}>
-        {loading ? (
-          <div className="loader"></div>
-        ) : (
+        {loading ? <div className="loader"></div> : (
           <div className="table-container">
             <table className="premium-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Date of Birth</th>
-                  <th>Gender</th>
-                  <th>Phone No</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
+              <thead><tr><th>ID</th><th>Name</th><th>Date of Birth</th><th>Gender</th><th>Phone No</th><th>Actions</th></tr></thead>
               <tbody>
-                {patients.length > 0 ? (
-                  patients.map((patient) => (
-                    <tr key={patient.patient_id}>
-                      <td>#{patient.patient_id}</td>
-                      <td className={styles.nameCell}>{patient.name}</td>
-                      <td>{new Date(patient.dob).toLocaleDateString()}</td>
-                      <td>
-                        <span className={`badge ${patient.gender === 'Male' ? 'badge-primary' : 'badge-secondary'}`}>
-                          {patient.gender}
-                        </span>
-                      </td>
-                      <td>{patient.phone_no}</td>
-                      <td>
-                        <button className={styles.actionBtn}>View</button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="6" className={styles.emptyState}>No patients found in database.</td>
+                {Array.isArray(patients) && patients.map((patient) => (
+                  <tr key={patient.patient_id}>
+                    <td>#{patient.patient_id}</td>
+                    <td className={styles.strongText}>{patient.name}</td>
+                    <td>{new Date(patient.dob).toLocaleDateString()}</td>
+                    <td><span className={`badge ${patient.gender === 'Male' ? 'badge-primary' : 'badge-secondary'}`}>{patient.gender}</span></td>
+                    <td>{patient.phone_no}</td>
+                    <td>
+                      <button className={styles.actionBtn} onClick={() => {
+                        setSelectedPatient(patient);
+                        setActiveProfileTab('history');
+                        loadPatientDetails(patient.patient_id, 'history');
+                        setIsViewModalOpen(true);
+                      }}>View Profile</button>
+                    </td>
                   </tr>
-                )}
+                ))}
+                {(!Array.isArray(patients) || patients.length === 0) && <tr><td colSpan="6" className={styles.emptyState}>No patients found.</td></tr>}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Add Patient Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Patient">
+        <form onSubmit={handleSubmit}>
+          <div className="form-group"><label>Full Name</label><input type="text" name="name" required className="form-input" value={formData.name} onChange={handleInputChange}/></div>
+          <div className="form-group"><label>Date of Birth</label><input type="date" name="dob" required className="form-input" value={formData.dob} onChange={handleInputChange}/></div>
+          <div className="form-group"><label>Gender</label><select name="gender" required className="form-input" value={formData.gender} onChange={handleInputChange}><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div>
+          <div className="form-group"><label>Phone Number</label><input type="tel" name="phone_no" required className="form-input" value={formData.phone_no} onChange={handleInputChange}/></div>
+          <div className="form-group"><label>Address</label><input type="text" name="address" required className="form-input" value={formData.address} onChange={handleInputChange}/></div>
+          <button type="submit" className="submit-btn" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Patient'}</button>
+        </form>
+      </Modal>
+
+      {/* View Patient Modal with Tabs */}
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Patient Dashboard" width="800px">
+        {selectedPatient && (
+          <div className={styles.patientProfile}>
+            <div className={styles.profileHeader}>
+              <div className={styles.profileAvatar}>{selectedPatient.name.charAt(0)}</div>
+              <div>
+                <h3 className={styles.profileName}>{selectedPatient.name}</h3>
+                <p className={styles.profileId}>Patient ID: #{selectedPatient.patient_id} • {selectedPatient.phone_no}</p>
+              </div>
+            </div>
+
+            <div className={styles.tabs}>
+              {['history', 'prescription', 'labtest', 'admission'].map(tab => (
+                <button key={tab} className={`${styles.tab} ${activeProfileTab === tab ? styles.activeTab : ''}`} onClick={() => handleTabChange(tab)}>
+                  {tab === 'history' ? 'Diagnoses' : tab === 'prescription' ? 'Prescriptions' : tab === 'labtest' ? 'Lab Results' : 'Admissions'}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.tabContent}>
+              {/* HISTORY TAB */}
+              {activeProfileTab === 'history' && (
+                <div>
+                  <div className={styles.contentHeader}>
+                    <h4>Medical Diagnoses</h4>
+                    <button className={styles.primaryBtnSm} onClick={() => setIsDiagnosisModalOpen(true)}>+ Log Diagnosis</button>
+                  </div>
+                  <div className={styles.historyList}>
+                    {patientRecords.map(r => (
+                      <div key={r.record_id} className={styles.historyCard}>
+                        <div className={styles.historyDate}>{new Date(r.record_date).toLocaleDateString()} (Rec ID: #{r.record_id})</div>
+                        <h5 className={styles.diseaseTitle}>{r.disease}</h5>
+                        <p className={styles.diseaseDesc}>{r.description}</p>
+                        <div className={styles.historyDoctor}>Dr. {r.doctor_name || `#${r.doctor_id}`}</div>
+                      </div>
+                    ))}
+                    {patientRecords.length === 0 && <p className={styles.emptyState}>No medical records found.</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* PRESCRIPTION TAB */}
+              {activeProfileTab === 'prescription' && (
+                <div>
+                  <div className={styles.contentHeader}>
+                    <h4>Prescriptions</h4>
+                    <button className={styles.primaryBtnSm} onClick={() => { setDetailFormType('prescription'); setIsAddDetailOpen(true); }}>+ Add</button>
+                  </div>
+                  <table className="premium-table">
+                    <thead><tr><th>Date</th><th>Medicine</th><th>Dosage</th><th>Duration</th></tr></thead>
+                    <tbody>
+                      {prescriptions.length > 0 ? prescriptions.map(p => (
+                        <tr key={p.prescription_id}><td>{new Date(p.record_date).toLocaleDateString()}</td><td>{p.medicine_name}</td><td>{p.dosage}</td><td>{p.duration}</td></tr>
+                      )) : <tr><td colSpan="4" className={styles.emptyState}>No prescriptions found.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* LAB RESULTS TAB */}
+              {activeProfileTab === 'labtest' && (
+                <div>
+                  <div className={styles.contentHeader}>
+                    <h4>Lab Test Results</h4>
+                    <button className={styles.primaryBtnSm} onClick={() => { setDetailFormType('labtest'); setIsAddDetailOpen(true); }}>+ Add</button>
+                  </div>
+                  <table className="premium-table">
+                    <thead><tr><th>Date</th><th>Test Name</th><th>Cost</th><th>Result</th></tr></thead>
+                    <tbody>
+                      {labResults.length > 0 ? labResults.map(l => (
+                        <tr key={l.result_id}><td>{new Date(l.test_date).toLocaleDateString()}</td><td>{l.test_name}</td><td>₹{parseFloat(l.cost||0).toFixed(2)}</td><td><span className="badge badge-warning">{l.result}</span></td></tr>
+                      )) : <tr><td colSpan="4" className={styles.emptyState}>No lab results found.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ADMISSIONS TAB */}
+              {activeProfileTab === 'admission' && (
+                <div>
+                  <div className={styles.contentHeader}>
+                    <h4>Admission History</h4>
+                    <button className={styles.primaryBtnSm} onClick={() => { setDetailFormType('admission'); setIsAddDetailOpen(true); }}>+ Admit Patient</button>
+                  </div>
+                  <table className="premium-table">
+                    <thead><tr><th>Admit Date</th><th>Bed No</th><th>Room Type</th><th>Discharge</th><th>Remarks</th></tr></thead>
+                    <tbody>
+                      {admissions.length > 0 ? admissions.map(a => (
+                        <tr key={a.admit_id}><td>{new Date(a.admit_date).toLocaleDateString()}</td><td>Bed #{a.bed_no}</td><td>{a.room_type}</td><td>{a.discharge_date ? new Date(a.discharge_date).toLocaleDateString() : <span className="badge badge-warning">Active</span>}</td><td>{a.remarks || '—'}</td></tr>
+                      )) : <tr><td colSpan="5" className={styles.emptyState}>No admissions found.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Log Diagnosis Modal */}
+      <Modal isOpen={isDiagnosisModalOpen} onClose={() => setIsDiagnosisModalOpen(false)} title="Log Diagnosis">
+        <form onSubmit={async (e) => {
+            e.preventDefault(); setIsLoggingDiag(true);
+            try {
+              const res = await fetch('/api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...diagnosisData, patient_id: selectedPatient.patient_id }) });
+              if (res.ok) { setIsDiagnosisModalOpen(false); setDiagnosisData({ doctor_id: '', disease: '', description: '' }); loadPatientDetails(selectedPatient.patient_id, 'history'); }
+            } catch (err) { alert('Failed'); } finally { setIsLoggingDiag(false); }
+          }}>
+            <div className="form-group"><label>Doctor ID</label><input type="number" required className="form-input" value={diagnosisData.doctor_id} onChange={(e) => setDiagnosisData({...diagnosisData, doctor_id: e.target.value})}/></div>
+            <div className="form-group"><label>Disease / Condition</label><input type="text" required className="form-input" value={diagnosisData.disease} onChange={(e) => setDiagnosisData({...diagnosisData, disease: e.target.value})}/></div>
+            <div className="form-group"><label>Description & Notes</label><textarea className="form-input" style={{minHeight: '100px'}} value={diagnosisData.description} onChange={(e) => setDiagnosisData({...diagnosisData, description: e.target.value})}/></div>
+            <button type="submit" className="submit-btn">Save</button>
+          </form>
+      </Modal>
+
+      {/* Add Detail Modal */}
+      <Modal isOpen={isAddDetailOpen} onClose={() => setIsAddDetailOpen(false)} title={`Add ${detailFormType}`}>
+        <form onSubmit={handleAddDetail}>
+          {detailFormType === 'prescription' && (
+            <>
+              <div className="form-group"><label>Medical Record ID</label><input type="number" required className="form-input" onChange={e => setDetailFormData({...detailFormData, record_id: e.target.value})}/></div>
+              <div className="form-group"><label>Medication ID</label><input type="number" required className="form-input" placeholder="From Pharmacy page" onChange={e => setDetailFormData({...detailFormData, medication_id: e.target.value})}/></div>
+              <div className="form-group"><label>Dosage</label><input type="text" required className="form-input" placeholder="e.g. 500mg twice daily" onChange={e => setDetailFormData({...detailFormData, dosage: e.target.value})}/></div>
+              <div className="form-group"><label>Duration</label><input type="text" className="form-input" placeholder="e.g. 7 days" onChange={e => setDetailFormData({...detailFormData, duration: e.target.value})}/></div>
+            </>
+          )}
+          {detailFormType === 'labtest' && (
+            <>
+              <div className="form-group"><label>Lab Test ID</label><input type="number" required className="form-input" placeholder="From Pharmacy & Labs page" onChange={e => setDetailFormData({...detailFormData, test_id: e.target.value})}/></div>
+              <div className="form-group"><label>Test Date</label><input type="date" required className="form-input" onChange={e => setDetailFormData({...detailFormData, test_date: e.target.value})}/></div>
+              <div className="form-group"><label>Result</label><input type="text" className="form-input" placeholder="e.g. Positive, Negative, 120 mg/dL" onChange={e => setDetailFormData({...detailFormData, result: e.target.value})}/></div>
+            </>
+          )}
+          {detailFormType === 'admission' && (
+            <>
+              <div className="form-group"><label>Bed ID</label><input type="number" required className="form-input" placeholder="From Facilities page" onChange={e => setDetailFormData({...detailFormData, bed_id: e.target.value})}/></div>
+              <div className="form-group"><label>Admission Date</label><input type="date" required className="form-input" onChange={e => setDetailFormData({...detailFormData, admit_date: e.target.value})}/></div>
+            </>
+          )}
+          <button type="submit" className="submit-btn" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Record'}</button>
+        </form>
+      </Modal>
+
     </div>
   );
 }

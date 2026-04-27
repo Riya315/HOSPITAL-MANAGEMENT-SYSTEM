@@ -1,12 +1,18 @@
 'use client';
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
+import Modal from '@/components/Modal';
 
 export default function BillingPage() {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [selectedBill, setSelectedBill] = useState(null);
+  const [formData, setFormData] = useState({ patient_id: '', total_amount: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
+  const fetchBills = () => {
     fetch('/api/billing')
       .then(res => res.json())
       .then(data => {
@@ -17,7 +23,35 @@ export default function BillingPage() {
         console.error(err);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchBills();
   }, []);
+
+  const handleGenerateBill = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        setIsGenerateModalOpen(false);
+        setFormData({ patient_id: '', total_amount: '' });
+        fetchBills();
+      } else {
+        const err = await res.json();
+        alert('Error: ' + err.error);
+      }
+    } catch (err) {
+      alert('Failed to generate bill.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className={styles.pageContainer}>
@@ -26,7 +60,9 @@ export default function BillingPage() {
           <h1 className={styles.title}>Billing</h1>
           <p className={styles.subtitle}>Patient invoices and payment records.</p>
         </div>
-        <button className={styles.primaryButton}>+ Generate Bill</button>
+        <button className={styles.primaryButton} onClick={() => setIsGenerateModalOpen(true)}>
+          + Generate Bill
+        </button>
       </header>
 
       <div className={`glass-card ${styles.tableCard}`}>
@@ -37,27 +73,33 @@ export default function BillingPage() {
             <table className="premium-table">
               <thead>
                 <tr>
-                  <th>Invoice ID</th>
-                  <th>Patient</th>
+                  <th>Bill ID</th>
                   <th>Date</th>
-                  <th>Amount</th>
+                  <th>Patient</th>
+                  <th>Total Amount</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {bills.length > 0 ? (
+                {Array.isArray(bills) && bills.length > 0 ? (
                   bills.map((bill) => (
                     <tr key={bill.bill_id}>
-                      <td>INV-{bill.bill_id.toString().padStart(4, '0')}</td>
-                      <td className={styles.strongText}>{bill.patient_name || `Patient #${bill.patient_id}`}</td>
+                      <td>#{bill.bill_id}</td>
                       <td>{new Date(bill.bill_date).toLocaleDateString()}</td>
-                      <td className={styles.amount}>₹{parseFloat(bill.total_amount).toFixed(2)}</td>
+                      <td className={styles.strongText}>{bill.patient_name || `Patient #${bill.patient_id}`}</td>
+                      <td className={styles.strongText}>₹{parseFloat(bill.total_amount).toFixed(2)}</td>
+                      <td><span className="badge badge-success">Paid</span></td>
                       <td>
-                        <span className="badge badge-success">Paid</span>
-                      </td>
-                      <td>
-                        <button className={styles.actionBtn}>Receipt</button>
+                        <button
+                          className={styles.actionBtn}
+                          onClick={() => {
+                            setSelectedBill(bill);
+                            setIsReceiptModalOpen(true);
+                          }}
+                        >
+                          Receipt
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -71,6 +113,75 @@ export default function BillingPage() {
           </div>
         )}
       </div>
+
+      {/* Generate Bill Modal */}
+      <Modal isOpen={isGenerateModalOpen} onClose={() => setIsGenerateModalOpen(false)} title="Generate New Bill">
+        <form onSubmit={handleGenerateBill}>
+          <div className="form-group">
+            <label>Patient ID</label>
+            <input
+              type="number"
+              required
+              className="form-input"
+              placeholder="Enter Patient ID"
+              value={formData.patient_id}
+              onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Total Amount (₹)</label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              className="form-input"
+              placeholder="e.g. 1500.00"
+              value={formData.total_amount}
+              onChange={(e) => setFormData({ ...formData, total_amount: e.target.value })}
+            />
+          </div>
+          <button type="submit" className="submit-btn" disabled={isSubmitting}>
+            {isSubmitting ? 'Generating...' : 'Generate Bill'}
+          </button>
+        </form>
+      </Modal>
+
+      {/* Receipt Modal */}
+      <Modal isOpen={isReceiptModalOpen} onClose={() => setIsReceiptModalOpen(false)} title="Invoice Receipt">
+        {selectedBill && (
+          <div className={styles.receipt}>
+            <div className={styles.receiptHeader}>
+              <h2>HMS<span className={styles.accent}>Pro</span> Hospital</h2>
+              <p>Official Medical Invoice</p>
+            </div>
+
+            <div className={styles.receiptDetails}>
+              <div className={styles.row}>
+                <span>Invoice No:</span>
+                <strong>INV-{selectedBill.bill_id.toString().padStart(4, '0')}</strong>
+              </div>
+              <div className={styles.row}>
+                <span>Date:</span>
+                <strong>{new Date(selectedBill.bill_date).toLocaleDateString()}</strong>
+              </div>
+              <div className={styles.row}>
+                <span>Patient:</span>
+                <strong>{selectedBill.patient_name || `Patient #${selectedBill.patient_id}`}</strong>
+              </div>
+            </div>
+
+            <div className={styles.receiptTotal}>
+              <span>Total Amount</span>
+              <span className={styles.totalValue}>₹{parseFloat(selectedBill.total_amount).toFixed(2)}</span>
+            </div>
+
+            <div className={styles.receiptFooter}>
+              <span className="badge badge-success">PAID</span>
+              <button className={styles.printBtn} onClick={() => window.print()}>Print Receipt</button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

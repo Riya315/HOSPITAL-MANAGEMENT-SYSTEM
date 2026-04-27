@@ -66,10 +66,28 @@ export default function Dashboard() {
 
       <div className={styles.dashboardContent}>
         <div className={`glass-card ${styles.activityFeed}`}>
-          <h2 className={styles.sectionTitle}>Recent Activity</h2>
-          <div className={styles.emptyState}>
-            <p>Connect to the database to see live updates.</p>
-          </div>
+          <h2 className={styles.sectionTitle}>Recent Appointments</h2>
+          {stats?.recentActivity && stats.recentActivity.length > 0 ? (
+            <div className={styles.activityList}>
+              {stats.recentActivity.map(activity => (
+                <div key={activity.appointment_id} className={styles.activityItem}>
+                  <div className={styles.activityIcon}>📅</div>
+                  <div className={styles.activityDetails}>
+                    <p className={styles.activityText}>
+                      <strong>{activity.patient_name || `Patient #${activity.appointment_id}`}</strong> has an appointment with <strong>Dr. {activity.doctor_name}</strong>
+                    </p>
+                    <p className={styles.activityTime}>
+                      {new Date(activity.date).toLocaleDateString()} at {activity.time} • <span className={`badge ${activity.status === 'Completed' ? 'badge-success' : activity.status === 'Cancelled' ? 'badge-danger' : 'badge-warning'}`}>{activity.status}</span>
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.emptyState}>
+              <p>No recent activity found.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

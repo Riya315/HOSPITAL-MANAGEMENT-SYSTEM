@@ -71,3 +71,9 @@
   padding: 40px !important;
   color: var(--text-muted) !important;
 }
+
+.manageText {
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  font-size: 1.05rem;
+}

@@ -10,7 +10,10 @@ export default function Sidebar() {
     { name: 'Dashboard', path: '/', icon: '⊞' },
     { name: 'Patients', path: '/patients', icon: '👤' },
     { name: 'Doctors', path: '/doctors', icon: '🩺' },
+    { name: 'Staff', path: '/staff', icon: '👥' },
     { name: 'Appointments', path: '/appointments', icon: '📅' },
+    { name: 'Facilities', path: '/facilities', icon: '🏥' },
+    { name: 'Pharmacy', path: '/inventory', icon: '💊' },
     { name: 'Billing', path: '/billing', icon: '💳' },
   ];
 
