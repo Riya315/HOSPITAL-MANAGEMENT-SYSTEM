@@ -10,6 +10,7 @@ export default function FacilitiesPage() {
   const [beds, setBeds] = useState([]);
   const [ambulances, setAmbulances] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -19,7 +20,14 @@ export default function FacilitiesPage() {
   const [bedForm, setBedForm] = useState({ room_id: '', bed_no: '', status: 'Available' });
   const [ambulanceForm, setAmbulanceForm] = useState({ driver_name: '', vehicle_type: 'Standard' });
 
-  useEffect(() => { fetchData(); }, [activeTab]);
+  useEffect(() => { 
+    fetchData(); 
+    // Always fetch rooms so they are available in the Bed Add dropdown
+    fetch('/api/facilities?type=room')
+      .then(res => res.json())
+      .then(data => setRooms(Array.isArray(data) ? data : []))
+      .catch(err => console.error(err));
+  }, [activeTab]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -70,6 +78,16 @@ export default function FacilitiesPage() {
           <h1 className={styles.title}>Facilities & Transport</h1>
           <p className={styles.subtitle}>Manage departments, rooms, beds, and ambulances.</p>
         </div>
+        <div className="search-container">
+          <span className="search-icon">🔍</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder={`Search ${activeTab}...`} 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
         <button className={styles.primaryButton} onClick={() => setIsAddModalOpen(true)}>+ Add {tabLabel}</button>
       </header>
 
@@ -91,7 +109,9 @@ export default function FacilitiesPage() {
               <table className="premium-table">
                 <thead><tr><th>ID</th><th>Department Name</th><th>Hospital</th></tr></thead>
                 <tbody>
-                  {departments.map(d => (
+                  {departments
+                    .filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(d => (
                     <tr key={d.department_id}><td>#{d.department_id}</td><td className={styles.strongText}>{d.name}</td><td>#{d.hospital_id || 'N/A'}</td></tr>
                   ))}
                   {departments.length === 0 && <tr><td colSpan="3" className={styles.emptyState}>No departments found.</td></tr>}
@@ -103,7 +123,9 @@ export default function FacilitiesPage() {
               <table className="premium-table">
                 <thead><tr><th>Room ID</th><th>Type</th><th>Charges per Day (₹)</th></tr></thead>
                 <tbody>
-                  {rooms.map(r => (
+                  {rooms
+                    .filter(r => r.type.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(r => (
                     <tr key={r.room_id}><td>#{r.room_id}</td><td><span className="badge badge-primary">{r.type}</span></td><td>₹{parseFloat(r.charges || 0).toFixed(2)}</td></tr>
                   ))}
                   {rooms.length === 0 && <tr><td colSpan="3" className={styles.emptyState}>No rooms found.</td></tr>}
@@ -115,7 +137,9 @@ export default function FacilitiesPage() {
               <table className="premium-table">
                 <thead><tr><th>Bed ID</th><th>Room ID</th><th>Bed No</th><th>Status</th></tr></thead>
                 <tbody>
-                  {beds.map(b => (
+                  {beds
+                    .filter(b => b.status.toLowerCase().includes(searchQuery.toLowerCase()) || b.bed_no.toString().includes(searchQuery))
+                    .map(b => (
                     <tr key={b.bed_id}>
                       <td>#{b.bed_id}</td><td>Room #{b.room_id}</td><td>{b.bed_no}</td>
                       <td><span className={`badge ${b.status === 'Available' ? 'badge-success' : 'badge-danger'}`}>{b.status}</span></td>
@@ -130,7 +154,9 @@ export default function FacilitiesPage() {
               <table className="premium-table">
                 <thead><tr><th>ID</th><th>Driver Name</th><th>Type</th><th>Hospital</th></tr></thead>
                 <tbody>
-                  {ambulances.map(a => (
+                  {ambulances
+                    .filter(a => a.driver_name.toLowerCase().includes(searchQuery.toLowerCase()) || a.type.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(a => (
                     <tr key={a.ambulance_id}><td>#{a.ambulance_id}</td><td className={styles.strongText}>{a.driver_name}</td><td>{a.type}</td><td>#{a.hospital_id || 'N/A'}</td></tr>
                   ))}
                   {ambulances.length === 0 && <tr><td colSpan="4" className={styles.emptyState}>No ambulances found.</td></tr>}
@@ -155,7 +181,20 @@ export default function FacilitiesPage() {
             <div className="form-group"><label>Charges Per Day (₹)</label><input type="number" step="0.01" required className="form-input" value={roomForm.charges} onChange={e => setRoomForm({...roomForm, charges: e.target.value})}/></div>
           </>)}
           {activeTab === 'beds' && (<>
-            <div className="form-group"><label>Room ID</label><input type="number" required className="form-input" value={bedForm.room_id} onChange={e => setBedForm({...bedForm, room_id: e.target.value})}/></div>
+            <div className="form-group">
+              <label>Select Room</label>
+              <select 
+                required 
+                className="form-input" 
+                value={bedForm.room_id} 
+                onChange={e => setBedForm({...bedForm, room_id: e.target.value})}
+              >
+                <option value="">Choose Room</option>
+                {rooms.map(r => (
+                  <option key={r.room_id} value={r.room_id}>Room #{r.room_id} - {r.type} (₹{r.charges}/day)</option>
+                ))}
+              </select>
+            </div>
             <div className="form-group"><label>Bed Number</label><input type="number" required className="form-input" value={bedForm.bed_no} onChange={e => setBedForm({...bedForm, bed_no: e.target.value})}/></div>
             <div className="form-group"><label>Status</label>
               <select className="form-input" value={bedForm.status} onChange={e => setBedForm({...bedForm, status: e.target.value})}>

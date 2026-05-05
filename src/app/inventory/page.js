@@ -8,11 +8,12 @@ export default function InventoryPage() {
   const [medications, setMedications] = useState([]);
   const [labTests, setLabTests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [medForm, setMedForm] = useState({ name: '', manufacturer: '', cost: '' });
+  const [medForm, setMedForm] = useState({ name: '', manufacturer: '', cost: '', stock: '' });
   const [labForm, setLabForm] = useState({ name: '', cost: '' });
 
   useEffect(() => { fetchData(); }, [activeTab]);
@@ -42,7 +43,7 @@ export default function InventoryPage() {
       const res = await fetch('/api/inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
         setIsAddModalOpen(false);
-        setMedForm({ name: '', manufacturer: '', cost: '' });
+        setMedForm({ name: '', manufacturer: '', cost: '', stock: '' });
         setLabForm({ name: '', cost: '' });
         fetchData();
       } else alert('Error: ' + (await res.json()).error);
@@ -56,6 +57,16 @@ export default function InventoryPage() {
         <div>
           <h1 className={styles.title}>Pharmacy & Labs</h1>
           <p className={styles.subtitle}>Manage medicines, lab tests, and medical inventory.</p>
+        </div>
+        <div className="search-container">
+          <span className="search-icon">🔍</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder={`Search ${activeTab}...`} 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
         <button className={styles.primaryButton} onClick={() => setIsAddModalOpen(true)}>
           + {activeTab === 'medication' ? 'Add Medicine' : 'Add Lab Test'}
@@ -74,17 +85,24 @@ export default function InventoryPage() {
           <div className="table-container">
             {activeTab === 'medication' && (
               <table className="premium-table">
-                <thead><tr><th>ID</th><th>Medicine Name</th><th>Manufacturer</th><th>Cost (₹)</th></tr></thead>
+                <thead><tr><th>ID</th><th>Medicine Name</th><th>Manufacturer</th><th>Cost (₹)</th><th>Stock Left</th></tr></thead>
                 <tbody>
-                  {medications.map(m => (
+                  {medications
+                    .filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.manufacturer || '').toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(m => (
                     <tr key={m.medication_id}>
                       <td>#{m.medication_id}</td>
                       <td className={styles.strongText}>{m.name}</td>
                       <td>{m.manufacturer || 'N/A'}</td>
                       <td>₹{parseFloat(m.cost || 0).toFixed(2)}</td>
+                      <td>
+                        <span className={`badge ${m.stock <= 2 ? 'badge-danger' : m.stock <= 10 ? 'badge-warning' : 'badge-success'}`}>
+                          {m.stock} {m.stock <= 2 && '🚨'}
+                        </span>
+                      </td>
                     </tr>
                   ))}
-                  {medications.length === 0 && <tr><td colSpan="4" className={styles.emptyState}>No medications found.</td></tr>}
+                  {medications.length === 0 && <tr><td colSpan="5" className={styles.emptyState}>No medications found.</td></tr>}
                 </tbody>
               </table>
             )}
@@ -93,7 +111,9 @@ export default function InventoryPage() {
               <table className="premium-table">
                 <thead><tr><th>Test ID</th><th>Test Name</th><th>Cost (₹)</th></tr></thead>
                 <tbody>
-                  {labTests.map(t => (
+                  {labTests
+                    .filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(t => (
                     <tr key={t.test_id}>
                       <td>#{t.test_id}</td>
                       <td className={styles.strongText}>{t.name}</td>
@@ -114,6 +134,7 @@ export default function InventoryPage() {
             <div className="form-group"><label>Medicine Name</label><input type="text" required className="form-input" value={medForm.name} onChange={e => setMedForm({...medForm, name: e.target.value})}/></div>
             <div className="form-group"><label>Manufacturer</label><input type="text" className="form-input" value={medForm.manufacturer} onChange={e => setMedForm({...medForm, manufacturer: e.target.value})}/></div>
             <div className="form-group"><label>Cost (₹)</label><input type="number" step="0.01" required className="form-input" value={medForm.cost} onChange={e => setMedForm({...medForm, cost: e.target.value})}/></div>
+            <div className="form-group"><label>Initial Stock Quantity</label><input type="number" required className="form-input" placeholder="e.g. 50" value={medForm.stock} onChange={e => setMedForm({...medForm, stock: e.target.value})}/></div>
           </>)}
           {activeTab === 'labtest' && (<>
             <div className="form-group"><label>Test Name</label><input type="text" required className="form-input" value={labForm.name} onChange={e => setLabForm({...labForm, name: e.target.value})}/></div>

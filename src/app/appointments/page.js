@@ -5,11 +5,14 @@ import Modal from '@/components/Modal';
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState([]);
+  const [patients, setPatients] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [newStatus, setNewStatus] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -33,8 +36,21 @@ export default function AppointmentsPage() {
       });
   };
 
+  const fetchReferenceData = () => {
+    fetch('/api/patients')
+      .then(res => res.json())
+      .then(data => setPatients(data))
+      .catch(err => console.error(err));
+
+    fetch('/api/doctors')
+      .then(res => res.json())
+      .then(data => setDoctors(data))
+      .catch(err => console.error(err));
+  };
+
   useEffect(() => {
     fetchAppointments();
+    fetchReferenceData();
   }, []);
 
   const handleInputChange = (e) => {
@@ -84,6 +100,16 @@ export default function AppointmentsPage() {
           <h1 className={styles.title}>Appointments</h1>
           <p className={styles.subtitle}>Manage patient appointments and schedules.</p>
         </div>
+        <div className="search-container">
+          <span className="search-icon">🔍</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder="Search by patient or doctor name..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
         <button className={styles.primaryButton} onClick={() => setIsModalOpen(true)}>
           + Book Appointment
         </button>
@@ -107,7 +133,13 @@ export default function AppointmentsPage() {
               </thead>
               <tbody>
                 {appointments.length > 0 ? (
-                  appointments.map((apt) => (
+                  appointments
+                    .filter(apt => 
+                      (apt.patient_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      (apt.doctor_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      apt.appointment_id.toString().includes(searchQuery)
+                    )
+                    .map((apt) => (
                     <tr key={apt.appointment_id}>
                       <td>#{apt.appointment_id}</td>
                       <td className={styles.strongText}>{apt.patient_name || `Patient #${apt.patient_id}`}</td>
@@ -148,29 +180,39 @@ export default function AppointmentsPage() {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Book Appointment">
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Patient ID</label>
-            <input 
-              type="number" 
+            <label>Select Patient</label>
+            <select 
               name="patient_id"
               required 
               className="form-input" 
-              placeholder="Enter Patient ID"
               value={formData.patient_id}
               onChange={handleInputChange}
-            />
+            >
+              <option value="">Choose Patient</option>
+              {patients.map(p => (
+                <option key={p.patient_id} value={p.patient_id}>
+                  {p.name} (ID: #{p.patient_id})
+                </option>
+              ))}
+            </select>
           </div>
           
           <div className="form-group">
-            <label>Doctor ID</label>
-            <input 
-              type="number" 
+            <label>Select Doctor</label>
+            <select 
               name="doctor_id"
               required 
               className="form-input" 
-              placeholder="Enter Doctor ID"
               value={formData.doctor_id}
               onChange={handleInputChange}
-            />
+            >
+              <option value="">Choose Doctor</option>
+              {doctors.map(d => (
+                <option key={d.doctor_id} value={d.doctor_id}>
+                  {d.name} ({d.specialization})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group">

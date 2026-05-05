@@ -5,10 +5,13 @@ import Modal from '@/components/Modal';
 
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Schedule Modal State
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -38,8 +41,23 @@ export default function DoctorsPage() {
       });
   };
 
+  const fetchReferenceData = () => {
+    // Fetch departments
+    fetch('/api/facilities?type=department')
+      .then(res => res.json())
+      .then(data => setDepartments(data))
+      .catch(err => console.error(err));
+
+    // Fetch patients for schedule modal
+    fetch('/api/patients')
+      .then(res => res.json())
+      .then(data => setPatients(data))
+      .catch(err => console.error(err));
+  };
+
   useEffect(() => {
     fetchDoctors();
+    fetchReferenceData();
   }, []);
 
   const handleInputChange = (e) => {
@@ -81,6 +99,16 @@ export default function DoctorsPage() {
           <h1 className={styles.title}>Doctors</h1>
           <p className={styles.subtitle}>Medical staff directory and schedules.</p>
         </div>
+        <div className="search-container">
+          <span className="search-icon">🔍</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder="Search doctors by name or specialization..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
         <button className={styles.primaryButton} onClick={() => setIsModalOpen(true)}>
           + Add Doctor
         </button>
@@ -90,7 +118,12 @@ export default function DoctorsPage() {
         {loading ? (
           <div className="loader"></div>
         ) : Array.isArray(doctors) && doctors.length > 0 ? (
-          doctors.map((doctor) => (
+          doctors
+            .filter(doctor => 
+              doctor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              doctor.specialization.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            .map((doctor) => (
             <div key={doctor.doctor_id} className={`glass-card ${styles.doctorCard}`}>
               <div className={styles.docHeader}>
                 <div className={styles.avatar}>
@@ -198,15 +231,21 @@ export default function DoctorsPage() {
           </div>
 
           <div className="form-group">
-            <label>Department ID (Optional)</label>
-            <input 
-              type="number" 
+            <label>Department</label>
+            <select 
               name="department_id"
               className="form-input" 
-              placeholder="Leave blank if unknown"
               value={formData.department_id}
               onChange={handleInputChange}
-            />
+              required
+            >
+              <option value="">Select Department</option>
+              {departments.map(dept => (
+                <option key={dept.department_id} value={dept.department_id}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <button type="submit" className="submit-btn" disabled={isSubmitting}>
@@ -278,14 +317,20 @@ export default function DoctorsPage() {
             <p className={styles.scheduleText}>Booking appointment with <strong>{selectedDoctor.name}</strong></p>
             
             <div className="form-group">
-              <label>Patient ID</label>
-              <input 
-                type="number" 
+              <label>Select Patient</label>
+              <select 
                 required 
                 className="form-input" 
                 value={scheduleData.patient_id}
                 onChange={(e) => setScheduleData({...scheduleData, patient_id: e.target.value})}
-              />
+              >
+                <option value="">Choose Patient</option>
+                {patients.map(p => (
+                  <option key={p.patient_id} value={p.patient_id}>
+                    {p.name} (ID: #{p.patient_id})
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label>Date</label>

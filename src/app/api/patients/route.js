@@ -1,9 +1,21 @@
 import pool from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search');
+
   try {
-    const [rows] = await pool.query('SELECT * FROM Patient ORDER BY name ASC');
+    let query = 'SELECT * FROM Patient';
+    let params = [];
+
+    if (search) {
+      query += ' WHERE name LIKE ? OR patient_id = ?';
+      params.push(`%${search}%`, search);
+    }
+
+    query += ' ORDER BY name ASC';
+    const [rows] = await pool.query(query, params);
     return NextResponse.json(rows);
   } catch (error) {
     console.error('Error fetching patients:', error);

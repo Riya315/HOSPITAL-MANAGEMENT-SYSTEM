@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const patient_id = searchParams.get('patient_id');
+  const search = searchParams.get('search');
 
   try {
     let query = `
@@ -16,13 +17,23 @@ export async function GET(request) {
       LEFT JOIN Diagnosis diag ON mr.record_id = diag.record_id
     `;
     let params = [];
+    let whereClauses = [];
 
     if (patient_id) {
-      query += ` WHERE mr.patient_id = ? ORDER BY mr.record_date DESC`;
+      whereClauses.push(`mr.patient_id = ?`);
       params.push(parseInt(patient_id));
-    } else {
-      query += ` ORDER BY mr.record_date DESC`;
     }
+
+    if (search) {
+      whereClauses.push(`(diag.disease LIKE ? OR diag.description LIKE ?)`);
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    if (whereClauses.length > 0) {
+      query += ` WHERE ` + whereClauses.join(' AND ');
+    }
+
+    query += ` ORDER BY mr.record_date DESC`;
 
     const [rows] = await pool.query(query, params);
     return NextResponse.json(rows);

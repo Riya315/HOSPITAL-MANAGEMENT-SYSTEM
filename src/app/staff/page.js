@@ -7,13 +7,26 @@ export default function StaffPage() {
   const [activeTab, setActiveTab] = useState('nurses');
   const [nurses, setNurses] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [staffForm, setStaffForm] = useState({ type: 'nurse', name: '', phone_no: '', role: '', department_id: '' });
 
-  useEffect(() => { fetchData(); }, [activeTab]);
+  useEffect(() => { 
+    fetchData(); 
+    fetchDepartments();
+  }, [activeTab]);
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch('/api/facilities?type=department');
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) { console.error(err); }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -51,6 +64,16 @@ export default function StaffPage() {
           <h1 className={styles.title}>Staff Directory</h1>
           <p className={styles.subtitle}>Manage nurses and hospital support staff.</p>
         </div>
+        <div className="search-container">
+          <span className="search-icon">🔍</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder="Search staff by name or role..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
         <button className={styles.primaryButton} onClick={() => setIsAddStaffOpen(true)}>+ Add Staff</button>
       </header>
 
@@ -68,7 +91,9 @@ export default function StaffPage() {
               <table className="premium-table">
                 <thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Phone No</th></tr></thead>
                 <tbody>
-                  {nurses.map(n => (
+                  {nurses
+                    .filter(n => n.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map(n => (
                     <tr key={n.nurse_id}>
                       <td>#{n.nurse_id}</td>
                       <td className={styles.strongText}>{n.name}</td>
@@ -84,7 +109,12 @@ export default function StaffPage() {
               <table className="premium-table">
                 <thead><tr><th>ID</th><th>Name</th><th>Role</th><th>Department</th><th>Phone No</th></tr></thead>
                 <tbody>
-                  {staff.map(s => (
+                  {staff
+                    .filter(s => 
+                      s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                      s.role.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    .map(s => (
                     <tr key={s.staff_id}>
                       <td>#{s.staff_id}</td>
                       <td className={styles.strongText}>{s.name}</td>
@@ -115,7 +145,20 @@ export default function StaffPage() {
           {staffForm.type === 'staff' && (
             <div className="form-group"><label>Role</label><input type="text" required className="form-input" placeholder="e.g. Cleaner, Security" value={staffForm.role} onChange={e => setStaffForm({...staffForm, role: e.target.value})}/></div>
           )}
-          <div className="form-group"><label>Department ID (Optional)</label><input type="number" className="form-input" value={staffForm.department_id} onChange={e => setStaffForm({...staffForm, department_id: e.target.value})}/></div>
+          <div className="form-group">
+            <label>Department</label>
+            <select 
+              className="form-input" 
+              value={staffForm.department_id} 
+              onChange={e => setStaffForm({...staffForm, department_id: e.target.value})}
+              required
+            >
+              <option value="">Select Department</option>
+              {departments.map(dept => (
+                <option key={dept.department_id} value={dept.department_id}>{dept.name}</option>
+              ))}
+            </select>
+          </div>
           <button type="submit" className="submit-btn" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Add Staff'}</button>
         </form>
       </Modal>

@@ -5,12 +5,14 @@ import Modal from '@/components/Modal';
 
 export default function BillingPage() {
   const [bills, setBills] = useState([]);
+  const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [formData, setFormData] = useState({ patient_id: '', total_amount: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchBills = () => {
     fetch('/api/billing')
@@ -25,8 +27,16 @@ export default function BillingPage() {
       });
   };
 
+  const fetchPatients = () => {
+    fetch('/api/patients')
+      .then(res => res.json())
+      .then(data => setPatients(data))
+      .catch(err => console.error(err));
+  };
+
   useEffect(() => {
     fetchBills();
+    fetchPatients();
   }, []);
 
   const handleGenerateBill = async (e) => {
@@ -60,7 +70,20 @@ export default function BillingPage() {
           <h1 className={styles.title}>Billing</h1>
           <p className={styles.subtitle}>Patient invoices and payment records.</p>
         </div>
-        <button className={styles.primaryButton} onClick={() => setIsGenerateModalOpen(true)}>
+        <div className="search-container">
+          <span className="search-icon">🔍</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder="Search by patient name or bill ID..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <button className={styles.primaryButton} onClick={() => {
+          fetchPatients(); // Refresh list before opening
+          setIsGenerateModalOpen(true);
+        }}>
           + Generate Bill
         </button>
       </header>
@@ -83,7 +106,12 @@ export default function BillingPage() {
               </thead>
               <tbody>
                 {Array.isArray(bills) && bills.length > 0 ? (
-                  bills.map((bill) => (
+                  bills
+                    .filter(bill => 
+                      (bill.patient_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      bill.bill_id.toString().includes(searchQuery)
+                    )
+                    .map((bill) => (
                     <tr key={bill.bill_id}>
                       <td>#{bill.bill_id}</td>
                       <td>{new Date(bill.bill_date).toLocaleDateString()}</td>
@@ -118,15 +146,20 @@ export default function BillingPage() {
       <Modal isOpen={isGenerateModalOpen} onClose={() => setIsGenerateModalOpen(false)} title="Generate New Bill">
         <form onSubmit={handleGenerateBill}>
           <div className="form-group">
-            <label>Patient ID</label>
-            <input
-              type="number"
+            <label>Select Patient</label>
+            <select
               required
               className="form-input"
-              placeholder="Enter Patient ID"
               value={formData.patient_id}
               onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
-            />
+            >
+              <option value="">Choose Patient</option>
+              {patients.map(p => (
+                <option key={p.patient_id} value={p.patient_id}>
+                  {p.name} (ID: #{p.patient_id})
+                </option>
+              ))}
+            </select>
           </div>
           <div className="form-group">
             <label>Total Amount (₹)</label>

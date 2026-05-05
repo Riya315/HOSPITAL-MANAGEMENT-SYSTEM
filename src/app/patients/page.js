@@ -10,7 +10,7 @@ export default function PatientsPage() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   
-  // View Profile Tabs: history, prescriptions, labtests, surgeries, allocations
+  // View Profile Tabs
   const [activeProfileTab, setActiveProfileTab] = useState('history');
   
   // Data States
@@ -19,13 +19,19 @@ export default function PatientsPage() {
   const [labResults, setLabResults] = useState([]);
   const [admissions, setAdmissions] = useState([]);
 
+  // Reference Data for Dropdowns
+  const [doctors, setDoctors] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [labTests, setLabTests] = useState([]);
+  const [beds, setBeds] = useState([]);
+
   // Add Data Modals & Forms
   const [isDiagnosisModalOpen, setIsDiagnosisModalOpen] = useState(false);
   const [diagnosisData, setDiagnosisData] = useState({ doctor_id: '', disease: '', description: '' });
   const [isLoggingDiag, setIsLoggingDiag] = useState(false);
 
   const [isAddDetailOpen, setIsAddDetailOpen] = useState(false);
-  const [detailFormType, setDetailFormType] = useState(''); // prescription, labtest, surgery, allocation
+  const [detailFormType, setDetailFormType] = useState(''); 
   const [detailFormData, setDetailFormData] = useState({});
 
   const [formData, setFormData] = useState({
@@ -33,11 +39,34 @@ export default function PatientsPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchPatients = () => {
-    fetch('/api/patients').then(res => res.json()).then(data => { setPatients(data); setLoading(false); });
+  // Search States
+  const [patientSearch, setPatientSearch] = useState('');
+  const [recordSearch, setRecordSearch] = useState('');
+
+  const fetchPatients = (search = '') => {
+    setLoading(true);
+    fetch(`/api/patients?search=${encodeURIComponent(search)}`)
+      .then(res => res.json())
+      .then(data => { setPatients(data); setLoading(false); });
   };
 
-  useEffect(() => { fetchPatients(); }, []);
+  const fetchReferenceData = () => {
+    fetch('/api/doctors').then(r => r.json()).then(d => setDoctors(d));
+    fetch('/api/inventory?type=medication').then(r => r.json()).then(d => setMedications(d));
+    fetch('/api/inventory?type=labtest').then(r => r.json()).then(d => setLabTests(d));
+    fetch('/api/facilities?type=bed').then(r => r.json()).then(d => setBeds(d));
+  };
+
+  useEffect(() => { 
+    const timer = setTimeout(() => {
+      fetchPatients(patientSearch);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [patientSearch]);
+
+  useEffect(() => {
+    fetchReferenceData();
+  }, []);
 
   const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -53,15 +82,15 @@ export default function PatientsPage() {
       if (res.ok) {
         setIsModalOpen(false);
         setFormData({ name: '', dob: '', gender: 'Male', phone_no: '', address: '' });
-        fetchPatients();
+        fetchPatients(patientSearch);
       } else alert('Error: ' + (await res.json()).error);
     } catch (error) { alert('Failed to add patient.'); } 
     finally { setIsSubmitting(false); }
   };
 
-  const loadPatientDetails = (patientId, tab) => {
+  const loadPatientDetails = (patientId, tab, search = '') => {
     if (tab === 'history') {
-      fetch(`/api/records?patient_id=${patientId}`)
+      fetch(`/api/records?patient_id=${patientId}&search=${encodeURIComponent(search)}`)
         .then(r => r.json())
         .then(d => setPatientRecords(Array.isArray(d) ? d : []));
     } else {
@@ -76,9 +105,19 @@ export default function PatientsPage() {
     }
   };
 
+  useEffect(() => {
+    if (selectedPatient && activeProfileTab === 'history') {
+      const timer = setTimeout(() => {
+        loadPatientDetails(selectedPatient.patient_id, 'history', recordSearch);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [recordSearch, selectedPatient, activeProfileTab]);
+
   const handleTabChange = (tab) => {
     setActiveProfileTab(tab);
-    if (selectedPatient) loadPatientDetails(selectedPatient.patient_id, tab);
+    setRecordSearch('');
+    if (selectedPatient) loadPatientDetails(selectedPatient.patient_id, tab, '');
   };
 
   const handleAddDetail = async (e) => {
@@ -93,10 +132,54 @@ export default function PatientsPage() {
       if (res.ok) {
         setIsAddDetailOpen(false);
         setDetailFormData({});
-        loadPatientDetails(selectedPatient.patient_id, detailFormType);
+        loadPatientDetails(selectedPatient.patient_id, detailFormType, '');
       } else alert('Error: ' + (await res.json()).error);
     } catch (err) { alert('Failed to save record.'); }
     finally { setIsSubmitting(false); }
+  };
+
+  const handleRecordChange = (e) => {
+    const recordId = e.target.value;
+    const record = patientRecords.find(r => r.record_id.toString() === recordId);
+    let autoMedicationId = '';
+    let autoDosage = '';
+    let autoDuration = '';
+    
+    if (record) {
+      const disease = record.disease.toLowerCase();
+      const matchedMed = medications.find(m => {
+        const medName = m.name.toLowerCase();
+        if (disease.includes('fever') || disease.includes('headache') || disease.includes('pain') || disease.includes('migraine')) return medName.includes('paracetamol') || medName.includes('dolo');
+        if (disease.includes('infection') || disease.includes('bacteria') || disease.includes('flu') || disease.includes('wound')) return medName.includes('amoxicillin');
+        if (disease.includes('allergy') || disease.includes('cold') || disease.includes('cough')) return medName.includes('cetirizine');
+        if (disease.includes('diabetes') || disease.includes('sugar')) return medName.includes('insulin');
+        if (disease.includes('blood pressure') || disease.includes('hypertension')) return medName.includes('losartan');
+        if (disease.includes('gastric') || disease.includes('acid') || disease.includes('ulcer') || disease.includes('stomach')) return medName.includes('pantoprazole');
+        if (disease.includes('bone') || disease.includes('calcium') || disease.includes('weakness')) return medName.includes('calcium');
+        if (disease.includes('vitamin')) return medName.includes('vitamin');
+        return false;
+      });
+      
+      if (matchedMed) {
+        autoMedicationId = matchedMed.medication_id.toString();
+        const medName = matchedMed.name.toLowerCase();
+        if (medName.includes('amoxicillin')) { autoDosage = '500mg twice daily'; autoDuration = '5 days'; }
+        else if (medName.includes('dolo') || medName.includes('paracetamol')) { autoDosage = '650mg as needed'; autoDuration = '3 days'; }
+        else if (medName.includes('cetirizine')) { autoDosage = '10mg once daily at night'; autoDuration = '5 days'; }
+        else if (medName.includes('pantoprazole')) { autoDosage = '40mg before breakfast'; autoDuration = '14 days'; }
+        else if (medName.includes('losartan')) { autoDosage = '50mg once daily'; autoDuration = '30 days'; }
+        else if (medName.includes('insulin')) { autoDosage = '10 units before meals'; autoDuration = '30 days'; }
+        else { autoDosage = 'As directed by physician'; autoDuration = '7 days'; }
+      }
+    }
+    
+    setDetailFormData(prev => ({
+      ...prev, 
+      record_id: recordId, 
+      medication_id: autoMedicationId || prev.medication_id,
+      dosage: autoDosage || prev.dosage,
+      duration: autoDuration || prev.duration
+    }));
   };
 
   return (
@@ -108,6 +191,18 @@ export default function PatientsPage() {
         </div>
         <button className={styles.primaryButton} onClick={() => setIsModalOpen(true)}>+ Add Patient</button>
       </header>
+
+      <div className={styles.searchContainer}>
+        <span style={{position: 'absolute', marginLeft: '12px', marginTop: '10px', color: 'var(--text-muted)'}}>🔍</span>
+        <input 
+          type="text" 
+          placeholder="Search patients by name or ID..." 
+          className={styles.searchInput}
+          style={{paddingLeft: '40px'}}
+          value={patientSearch}
+          onChange={(e) => setPatientSearch(e.target.value)}
+        />
+      </div>
 
       <div className={`glass-card ${styles.tableCard}`}>
         {loading ? <div className="loader"></div> : (
@@ -126,7 +221,8 @@ export default function PatientsPage() {
                       <button className={styles.actionBtn} onClick={() => {
                         setSelectedPatient(patient);
                         setActiveProfileTab('history');
-                        loadPatientDetails(patient.patient_id, 'history');
+                        setRecordSearch('');
+                        loadPatientDetails(patient.patient_id, 'history', '');
                         setIsViewModalOpen(true);
                       }}>View Profile</button>
                     </td>
@@ -179,6 +275,21 @@ export default function PatientsPage() {
                     <h4>Medical Diagnoses</h4>
                     <button className={styles.primaryBtnSm} onClick={() => setIsDiagnosisModalOpen(true)}>+ Log Diagnosis</button>
                   </div>
+                  
+                  <div className={styles.recordSearch}>
+                    <div style={{position: 'relative', display: 'flex', alignItems: 'center'}}>
+                      <span style={{position: 'absolute', marginLeft: '12px', color: 'var(--text-muted)'}}>🔍</span>
+                      <input 
+                        type="text" 
+                        placeholder="Search diagnoses by disease or description..." 
+                        className={styles.searchInput}
+                        style={{paddingLeft: '40px'}}
+                        value={recordSearch}
+                        onChange={(e) => setRecordSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
                   <div className={styles.historyList}>
                     {patientRecords.map(r => (
                       <div key={r.record_id} className={styles.historyCard}>
@@ -260,10 +371,23 @@ export default function PatientsPage() {
               if (res.ok) { setIsDiagnosisModalOpen(false); setDiagnosisData({ doctor_id: '', disease: '', description: '' }); loadPatientDetails(selectedPatient.patient_id, 'history'); }
             } catch (err) { alert('Failed'); } finally { setIsLoggingDiag(false); }
           }}>
-            <div className="form-group"><label>Doctor ID</label><input type="number" required className="form-input" value={diagnosisData.doctor_id} onChange={(e) => setDiagnosisData({...diagnosisData, doctor_id: e.target.value})}/></div>
+            <div className="form-group">
+              <label>Select Attending Doctor</label>
+              <select 
+                required 
+                className="form-input" 
+                value={diagnosisData.doctor_id} 
+                onChange={(e) => setDiagnosisData({...diagnosisData, doctor_id: e.target.value})}
+              >
+                <option value="">Choose Doctor</option>
+                {doctors.map(d => (
+                  <option key={d.doctor_id} value={d.doctor_id}>Dr. {d.name} ({d.specialization})</option>
+                ))}
+              </select>
+            </div>
             <div className="form-group"><label>Disease / Condition</label><input type="text" required className="form-input" value={diagnosisData.disease} onChange={(e) => setDiagnosisData({...diagnosisData, disease: e.target.value})}/></div>
             <div className="form-group"><label>Description & Notes</label><textarea className="form-input" style={{minHeight: '100px'}} value={diagnosisData.description} onChange={(e) => setDiagnosisData({...diagnosisData, description: e.target.value})}/></div>
-            <button type="submit" className="submit-btn">Save</button>
+            <button type="submit" className="submit-btn">Save Diagnosis</button>
           </form>
       </Modal>
 
@@ -272,23 +396,106 @@ export default function PatientsPage() {
         <form onSubmit={handleAddDetail}>
           {detailFormType === 'prescription' && (
             <>
-              <div className="form-group"><label>Medical Record ID</label><input type="number" required className="form-input" onChange={e => setDetailFormData({...detailFormData, record_id: e.target.value})}/></div>
-              <div className="form-group"><label>Medication ID</label><input type="number" required className="form-input" placeholder="From Pharmacy page" onChange={e => setDetailFormData({...detailFormData, medication_id: e.target.value})}/></div>
-              <div className="form-group"><label>Dosage</label><input type="text" required className="form-input" placeholder="e.g. 500mg twice daily" onChange={e => setDetailFormData({...detailFormData, dosage: e.target.value})}/></div>
-              <div className="form-group"><label>Duration</label><input type="text" className="form-input" placeholder="e.g. 7 days" onChange={e => setDetailFormData({...detailFormData, duration: e.target.value})}/></div>
+              <div className="form-group">
+                <label>Medical Record (Diagnosis)</label>
+                <select 
+                  required 
+                  className="form-input" 
+                  value={detailFormData.record_id || ''}
+                  onChange={handleRecordChange}
+                >
+                  <option value="">Link to Diagnosis</option>
+                  {patientRecords.map(r => (
+                    <option key={r.record_id} value={r.record_id}>#{r.record_id} - {r.disease} ({new Date(r.record_date).toLocaleDateString()})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Select Medication</label>
+                <select 
+                  required 
+                  className="form-input" 
+                  value={detailFormData.medication_id || ''}
+                  onChange={e => setDetailFormData({...detailFormData, medication_id: e.target.value})}
+                >
+                  <option value="">Choose Medicine</option>
+                  {medications.map(m => (
+                    <option key={m.medication_id} value={m.medication_id}>{m.name} - {m.manufacturer}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Dosage</label>
+                <select className="form-input" required value={detailFormData.dosage || ''} onChange={e => setDetailFormData({...detailFormData, dosage: e.target.value})}>
+                  <option value="">Select Dosage</option>
+                  <option value="10mg once daily at night">10mg once daily at night</option>
+                  <option value="10 units before meals">10 units before meals</option>
+                  <option value="40mg before breakfast">40mg before breakfast</option>
+                  <option value="50mg once daily">50mg once daily</option>
+                  <option value="500mg twice daily">500mg twice daily</option>
+                  <option value="650mg as needed">650mg as needed</option>
+                  <option value="As directed by physician">As directed by physician</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Duration / Trials</label>
+                <select className="form-input" required value={detailFormData.duration || ''} onChange={e => setDetailFormData({...detailFormData, duration: e.target.value})}>
+                  <option value="">Select Duration</option>
+                  <option value="1 day">1 day</option>
+                  <option value="3 days">3 days</option>
+                  <option value="5 days">5 days</option>
+                  <option value="7 days">7 days</option>
+                  <option value="14 days">14 days</option>
+                  <option value="30 days">30 days</option>
+                  <option value="Ongoing">Ongoing</option>
+                </select>
+              </div>
             </>
           )}
           {detailFormType === 'labtest' && (
             <>
-              <div className="form-group"><label>Lab Test ID</label><input type="number" required className="form-input" placeholder="From Pharmacy & Labs page" onChange={e => setDetailFormData({...detailFormData, test_id: e.target.value})}/></div>
-              <div className="form-group"><label>Test Date</label><input type="date" required className="form-input" onChange={e => setDetailFormData({...detailFormData, test_date: e.target.value})}/></div>
-              <div className="form-group"><label>Result</label><input type="text" className="form-input" placeholder="e.g. Positive, Negative, 120 mg/dL" onChange={e => setDetailFormData({...detailFormData, result: e.target.value})}/></div>
+              <div className="form-group">
+                <label>Select Lab Test</label>
+                <select 
+                  required 
+                  className="form-input" 
+                  value={detailFormData.test_id || ''}
+                  onChange={e => setDetailFormData({...detailFormData, test_id: e.target.value})}
+                >
+                  <option value="">Choose Test</option>
+                  {labTests.map(t => (
+                    <option key={t.test_id} value={t.test_id}>{t.name} (₹{t.cost})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group"><label>Test Date</label><input type="date" required className="form-input" value={detailFormData.test_date || ''} onChange={e => setDetailFormData({...detailFormData, test_date: e.target.value})}/></div>
+              <div className="form-group"><label>Result</label><input type="text" className="form-input" placeholder="e.g. Positive, Negative, 120 mg/dL" value={detailFormData.result || ''} onChange={e => setDetailFormData({...detailFormData, result: e.target.value})}/></div>
             </>
           )}
           {detailFormType === 'admission' && (
             <>
-              <div className="form-group"><label>Bed ID</label><input type="number" required className="form-input" placeholder="From Facilities page" onChange={e => setDetailFormData({...detailFormData, bed_id: e.target.value})}/></div>
-              <div className="form-group"><label>Admission Date</label><input type="date" required className="form-input" onChange={e => setDetailFormData({...detailFormData, admit_date: e.target.value})}/></div>
+              <div className="form-group">
+                <label>Select Bed</label>
+                <select 
+                  required 
+                  className="form-input" 
+                  value={detailFormData.bed_id || ''}
+                  onChange={e => setDetailFormData({...detailFormData, bed_id: e.target.value})}
+                >
+                  <option value="">Choose Bed</option>
+                  {beds.map(b => (
+                    <option 
+                      key={b.bed_id} 
+                      value={b.bed_id} 
+                      disabled={b.status !== 'Available'}
+                      style={b.status !== 'Available' ? { color: 'var(--text-muted)' } : {}}
+                    >
+                      Bed #{b.bed_no} - {b.room_type} {b.status !== 'Available' ? '(Occupied)' : '(Available)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group"><label>Admission Date</label><input type="date" required className="form-input" value={detailFormData.admit_date || ''} onChange={e => setDetailFormData({...detailFormData, admit_date: e.target.value})}/></div>
             </>
           )}
           <button type="submit" className="submit-btn" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Record'}</button>

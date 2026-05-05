@@ -28,8 +28,8 @@ export async function POST(request) {
       const [[{ maxId }]] = await pool.query('SELECT MAX(medication_id) as maxId FROM Medication');
       const newId = (maxId || 0) + 1;
       await pool.query(
-        'INSERT INTO Medication (medication_id, name, manufacturer, cost) VALUES (?, ?, ?, ?)',
-        [newId, data.name, data.manufacturer || '', parseFloat(data.cost) || 0]
+        'INSERT INTO Medication (medication_id, name, manufacturer, cost, stock) VALUES (?, ?, ?, ?, ?)',
+        [newId, data.name, data.manufacturer || '', parseFloat(data.cost) || 0, parseInt(data.stock) || 0]
       );
       return NextResponse.json({ success: true, medication_id: newId }, { status: 201 });
     } 
