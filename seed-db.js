@@ -81,6 +81,36 @@ async function seed() {
           [bId, pId, dateString, amount]);
       }
     }
+    
+    // 3. Inventory & Facilities
+    await connection.query('INSERT IGNORE INTO Medication (medication_id, name, manufacturer, cost, stock) VALUES (1, "Paracetamol", "PharmaCorp", 5.00, 100), (2, "Amoxicillin", "HealthMed", 15.50, 2), (3, "Ibuprofen", "PharmaCorp", 8.00, 1)');
+    await connection.query('INSERT IGNORE INTO Rooms (room_id, type, charges) VALUES (1, "General", 500.00), (2, "Private", 2000.00)');
+    await connection.query('INSERT IGNORE INTO Bed_Allocation (bed_id, room_id, bed_no, status) VALUES (1, 1, 101, "Occupied"), (2, 1, 102, "Occupied"), (3, 1, 103, "Available")');
+
+    // 4. Staff & Services
+    const staff = [
+      [1, 1, 'Mark Wilson', 'Technician', '555-0301'],
+      [2, 2, 'Sarah Jenkins', 'Receptionist', '555-0302'],
+      [3, 3, 'David Lee', 'Lab Assistant', '555-0303']
+    ];
+    for (const s of staff) {
+      await connection.query('INSERT IGNORE INTO Staff (staff_id, department_id, name, role, phone_no) VALUES (?, ?, ?, ?, ?)', s);
+    }
+
+    const labTests = [
+      [1, 'Blood Test', 500.00],
+      [2, 'X-Ray', 1200.00],
+      [3, 'MRI Scan', 5000.00]
+    ];
+    for (const test of labTests) {
+      await connection.query('INSERT IGNORE INTO Lab_Test (test_id, name, cost) VALUES (?, ?, ?)', test);
+    }
+
+    await connection.query('INSERT IGNORE INTO Patient_Admit (admit_id, patient_id, bed_id, admit_date) VALUES (1, 1, 1, CURDATE()), (2, 2, 2, CURDATE())');
+    
+    await connection.query('INSERT IGNORE INTO Ambulance_Service (ambulance_id, driver_name, hospital_id, type) VALUES (1, "John Driver", 1, "Basic"), (2, "Mike Speed", 1, "Advanced")');
+    
+    await connection.query('INSERT IGNORE INTO Insurance (insurance_id, patient_id, insurance_type, card_no) VALUES (1, 1, ' + connection.escape('Health Plus') + ', "HP12345"), (2, 2, ' + connection.escape('Life Care') + ', "LC67890")');
 
     console.log("Seeding completed successfully!");
     await connection.end();

@@ -17,24 +17,55 @@ export async function GET() {
       LIMIT 5
     `);
 
-    // 1. Appointments Trend (Recent Active Dates)
+    // 1. Appointments Trend (Last 10 Days - Fill missing days with 0)
     const [rawAppointmentTrends] = await pool.query(`
       SELECT date, COUNT(*) as count 
       FROM Appointment 
+      WHERE date >= DATE_SUB(CURDATE(), INTERVAL 9 DAY)
       GROUP BY date
-      ORDER BY date DESC
-      LIMIT 7
+      ORDER BY date ASC
     `);
-    const appointmentTrends = rawAppointmentTrends.reverse(); // oldest to newest for graphing
 
-    // 2. Revenue Trend (Last 7 Days)
-    const [revenueTrends] = await pool.query(`
+    const appointmentTrends = [];
+    for (let i = 9; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const existing = rawAppointmentTrends.find(r => {
+        const rDate = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
+        return rDate === dateStr;
+      });
+      appointmentTrends.push({
+        date: dateStr,
+        count: existing ? existing.count : 0
+      });
+    }
+
+    // 2. Revenue Trend (Last 10 Days - Fill missing days with 0)
+    const [rawRevenueTrends] = await pool.query(`
       SELECT bill_date as date, SUM(total_amount) as amount
       FROM Billing
-      WHERE bill_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+      WHERE bill_date >= DATE_SUB(CURDATE(), INTERVAL 9 DAY)
       GROUP BY bill_date
       ORDER BY bill_date ASC
     `);
+
+    // Fill missing dates
+    const revenueTrends = [];
+    for (let i = 9; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const existing = rawRevenueTrends.find(r => {
+        // Handle potential date object or string from MySQL
+        const rDate = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
+        return rDate === dateStr;
+      });
+      revenueTrends.push({
+        date: dateStr,
+        amount: existing ? parseFloat(existing.amount) : 0
+      });
+    }
 
     // 3. Department Distribution (Pie Chart)
     const [deptDistribution] = await pool.query(`
@@ -57,7 +88,7 @@ export async function GET() {
     // a) Bed Capacity Alert
     try {
       const [[{ totalBeds, occupiedBeds }]] = await pool.query(`
-        SELECT COUNT(*) as totalBeds, SUM(CASE WHEN status='Occupied' THEN 1 ELSE 0 END) as occupiedBeds FROM Bed
+        SELECT COUNT(*) as totalBeds, SUM(CASE WHEN status='Occupied' THEN 1 ELSE 0 END) as occupiedBeds FROM Bed_Allocation
       `);
       if (totalBeds > 0 && (occupiedBeds / totalBeds) > 0.8) {
         alerts.push({ type: 'warning', icon: '⚠️', message: 'Bed capacity almost full! (' + Math.round((occupiedBeds/totalBeds)*100) + '% Occupied)' });

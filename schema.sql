@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS HOSPITAL_HMS;
-USE HOSPITAL_HMS;
+CREATE DATABASE IF NOT EXISTS hospital_hms;
+USE hospital_hms;
 
 CREATE TABLE IF NOT EXISTS Hospital (
     hospital_id INT PRIMARY KEY,
@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS Medication (
     medication_id INT PRIMARY KEY,
     name VARCHAR(100),
     manufacturer VARCHAR(100),
-    cost DECIMAL(10,2)
+    cost DECIMAL(10,2),
+    stock INT DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS Prescription (

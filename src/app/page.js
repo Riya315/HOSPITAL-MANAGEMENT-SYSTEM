@@ -4,7 +4,7 @@ import Link from 'next/link';
 import styles from './page.module.css';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend, BarChart, Bar 
+  PieChart, Pie, Cell, Legend, BarChart, Bar, AreaChart, Area, ComposedChart 
 } from 'recharts';
 import Modal from '@/components/Modal';
 
@@ -28,6 +28,22 @@ export default function Dashboard() {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    if (detailModal.isOpen && detailModal.type === 'raw_table' && detailModal.tableName) {
+      setDetailLoading(true);
+      fetch(`/api/tables/data?table=${detailModal.tableName}`)
+        .then(res => res.json())
+        .then(data => {
+          setDetailModal(prev => ({ ...prev, data: data }));
+          setDetailLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setDetailLoading(false);
+        });
+    }
+  }, [detailModal.isOpen, detailModal.type, detailModal.tableName]);
 
   const handleDeptClick = async (data) => {
     setDetailLoading(true);
@@ -79,6 +95,31 @@ export default function Dashboard() {
     finally { setDetailLoading(false); }
   };
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (searchQuery.length > 2) {
+      setSearching(true);
+      const delayDebounceFn = setTimeout(() => {
+        fetch(`/api/search?q=${searchQuery}`)
+          .then(res => res.json())
+          .then(data => {
+            setSearchResults(data);
+            setSearching(false);
+          })
+          .catch(err => {
+            console.error(err);
+            setSearching(false);
+          });
+      }, 500);
+      return () => clearTimeout(delayDebounceFn);
+    } else {
+      setSearchResults(null);
+    }
+  }, [searchQuery]);
+
   if (loading) return <div className="loader"></div>;
 
   return (
@@ -87,6 +128,74 @@ export default function Dashboard() {
         <div>
           <h1 className={styles.title}>Welcome back, Admin</h1>
           <p className={styles.subtitle}>Here is what's happening at the hospital today.</p>
+        </div>
+        <div className={styles.searchContainer}>
+          <div className={styles.searchWrapper}>
+            <span className={styles.searchIcon}>🔍</span>
+            <input 
+              type="text" 
+              placeholder="Search patients, doctors, or records..." 
+              className={styles.searchInput}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searching && <div className={styles.searchLoader}></div>}
+          </div>
+          
+          {searchResults && (
+            <div className={styles.searchResults}>
+              {Object.keys(searchResults).every(k => searchResults[k].length === 0) ? (
+                <div className={styles.noResults}>No matches found for "{searchQuery}"</div>
+              ) : (
+                <>
+                  {searchResults.patients?.length > 0 && (
+                    <div className={styles.searchGroup}>
+                      <h4>Patients</h4>
+                      {searchResults.patients.map(p => (
+                        <div key={p.patient_id} className={styles.searchItem} onClick={() => openDetailModal(`Patient: ${p.name}`, `SELECT * FROM Patient WHERE patient_id = ${p.patient_id}`, 'raw')}>
+                          <span>{p.name}</span>
+                          <small>ID: #{p.patient_id}</small>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.doctors?.length > 0 && (
+                    <div className={styles.searchGroup}>
+                      <h4>Doctors</h4>
+                      {searchResults.doctors.map(d => (
+                        <div key={d.doctor_id} className={styles.searchItem} onClick={() => openDetailModal(`Doctor: ${d.name}`, `SELECT * FROM Doctor WHERE doctor_id = ${d.doctor_id}`, 'raw')}>
+                          <span>{d.name}</span>
+                          <small>{d.specialization}</small>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.appointments?.length > 0 && (
+                    <div className={styles.searchGroup}>
+                      <h4>Appointments</h4>
+                      {searchResults.appointments.map(a => (
+                        <div key={a.appointment_id} className={styles.searchItem} onClick={() => openDetailModal(`Appointment #${a.appointment_id}`, `SELECT * FROM Appointment WHERE appointment_id = ${a.appointment_id}`, 'raw')}>
+                          <span>{a.patient_name} with {a.doctor_name}</span>
+                          <small>Date: {new Date(a.date).toLocaleDateString()}</small>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.medications?.length > 0 && (
+                    <div className={styles.searchGroup}>
+                      <h4>Medications</h4>
+                      {searchResults.medications.map(m => (
+                        <div key={m.medication_id} className={styles.searchItem} onClick={() => openDetailModal(`Medication: ${m.name}`, `SELECT * FROM Medication WHERE medication_id = ${m.medication_id}`, 'raw')}>
+                          <span>{m.name}</span>
+                          <small>{m.manufacturer}</small>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -172,15 +281,21 @@ export default function Dashboard() {
 
       <div className={styles.chartGrid}>
         <div className={`glass-card ${styles.chartCard}`}>
-          <h2 className={styles.sectionTitle}>Appointments Trend</h2>
+          <h2 className={styles.sectionTitle}>Appointments Trend (Last 10 Days)</h2>
           <div className={styles.chartContainer}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
+              <ComposedChart 
                 data={stats?.appointmentTrends}
                 onClick={(data) => handleTrendClick(data, 'appointments')}
                 style={{ cursor: 'pointer' }}
                 margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
               >
+                <defs>
+                  <linearGradient id="colorApt" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                 <XAxis 
                   dataKey="date" 
@@ -191,20 +306,52 @@ export default function Dashboard() {
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                   itemStyle={{ color: '#f8fafc' }}
-                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                 />
-                <Legend />
-                <Bar 
-                  dataKey="count" 
-                  name="Appointments" 
-                  fill="#3b82f6" 
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
+                <Bar dataKey="count" name="Daily Column" fill="#3b82f6" opacity={0.4} radius={[6, 6, 0, 0]} barSize={30} />
+                <Line type="monotone" dataKey="count" name="Trend Line" stroke="#60a5fa" strokeWidth={4} dot={{ r: 5, fill: '#60a5fa', strokeWidth: 2, stroke: '#1e293b' }} activeDot={{ r: 8 }} />
+                <Area type="natural" dataKey="count" name="Volume" stroke="none" fillOpacity={1} fill="url(#colorApt)" />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
 
+        <div className={`glass-card ${styles.chartCard}`}>
+          <h2 className={styles.sectionTitle}>Revenue Trends (Last 10 Days)</h2>
+          <div className={styles.chartContainer}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart 
+                data={stats?.revenueTrends}
+                onClick={(data) => handleTrendClick(data, 'billing')}
+                style={{ cursor: 'pointer' }}
+                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#94a3b8" 
+                  tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, {day:'numeric', month:'short'})}
+                />
+                <YAxis stroke="#94a3b8" tickFormatter={(val) => `₹${val}`} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                  itemStyle={{ color: '#f8fafc' }}
+                />
+                <Bar dataKey="amount" name="Daily Column" fill="#10b981" opacity={0.4} radius={[6, 6, 0, 0]} barSize={30} />
+                <Line type="monotone" dataKey="amount" name="Trend Line" stroke="#34d399" strokeWidth={4} dot={{ r: 5, fill: '#34d399', strokeWidth: 2, stroke: '#1e293b' }} activeDot={{ r: 8 }} />
+                <Area type="natural" dataKey="amount" name="Volume" stroke="none" fillOpacity={1} fill="url(#colorRev)" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.chartGrid}>
         <div className={`glass-card ${styles.chartCard}`}>
           <h2 className={styles.sectionTitle}>Appointment Status</h2>
           <div className={styles.chartContainer}>
@@ -228,35 +375,6 @@ export default function Dashboard() {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.chartGrid}>
-        <div className={`glass-card ${styles.chartCard}`}>
-          <h2 className={styles.sectionTitle}>Revenue Trends (Last 7 Days)</h2>
-          <div className={styles.chartContainer}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart 
-                data={stats?.revenueTrends}
-                onClick={(data) => handleTrendClick(data, 'billing')}
-                style={{ cursor: 'pointer' }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis 
-                  dataKey="date" 
-                  stroke="#94a3b8" 
-                  tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, {day:'numeric', month:'short'})}
-                />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                  itemStyle={{ color: '#f8fafc' }}
-                />
-                <Legend />
-                <Line type="monotone" dataKey="amount" name="Revenue (₹)" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -392,7 +510,29 @@ export default function Dashboard() {
                 </tbody>
               </table>
             )}
-            {detailModal.data.length === 0 && <p className={styles.emptyState}>No records found.</p>}
+            {detailModal.type === 'raw_table' && (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="premium-table">
+                  <thead>
+                    <tr>
+                      {detailModal.data.length > 0 && Object.keys(detailModal.data[0]).map(key => (
+                        <th key={key}>{key}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailModal.data.map((row, i) => (
+                      <tr key={i}>
+                        {Object.values(row).map((val, j) => (
+                          <td key={j}>{val?.toString() || 'NULL'}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {detailModal.data.length === 0 && !detailLoading && <p className={styles.emptyState}>No records found.</p>}
           </div>
         )}
       </Modal>
